@@ -64,6 +64,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     setStep("uploading");
     setUploadDone(false);
 
+    // ── Image upload to ImgBB ──
     const downloadURL = await upload(selectedFile);
     if (!downloadURL) {
       toast.error(uploadError || "Upload failed. Try again.");
@@ -72,41 +73,59 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     }
 
     setUploadDone(true);
-    // Brief pause so user sees the "done" state of the animation
     await new Promise((r) => setTimeout(r, 700));
 
+    const uid = getUserId();
+    const now = new Date();
+    const desc = description.trim() || "No description provided";
+
+    // ── STEP 1: Save to localStorage FIRST (always works, no rules needed) ──
+    const tempId = "local-" + Date.now();
+    saveReport({
+      id: tempId,
+      imageUrl: downloadURL,
+      lat: location.lat,
+      lng: location.lng,
+      description: desc,
+      status: "pending",
+      userId: uid,
+      createdAt: now,
+    });
+
+    // ── STEP 2: Try to sync to Firestore (requires: allow write: if true) ──
     try {
-      const uid = getUserId();
-      const now = new Date();
       const docRef = await addDoc(collection(db, "reports"), {
         imageUrl: downloadURL,
         lat: location.lat,
         lng: location.lng,
-        description: description.trim() || "No description provided",
+        description: desc,
         status: "pending",
         userId: uid,
         createdAt: serverTimestamp(),
       });
 
-      // Always save to localStorage — survives Firestore rule changes & page refreshes
+      // Replace temp local entry with real Firestore document ID
       saveReport({
         id: docRef.id,
         imageUrl: downloadURL,
         lat: location.lat,
         lng: location.lng,
-        description: description.trim() || "No description provided",
+        description: desc,
         status: "pending",
         userId: uid,
         createdAt: now,
       });
-      toast.success("Report submitted successfully");
+
+      toast.success("Report saved to database");
       setStep("done");
       onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId: docRef.id });
     } catch {
-      toast.error("Failed to save report. Check your Firestore rules.");
-      setStep("located");
+      // Firestore blocked by rules — local save already happened so report won't disappear
+      toast("Saved locally. Update Firestore rules to sync.", { icon: "⚠️" });
+      setStep("done");
+      onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId: tempId });
     }
-  }, [selectedFile, location, upload, description, uploadError, onReportReady]);
+  }, [selectedFile, location, upload, description, uploadError, onReportReady, saveReport]);
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -280,7 +299,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
           </motion.div>
         )}
 
-        {/* ── UPLOADING — full-screen beautiful animation ── */}
+        {/* ── UPLOADING ── */}
         {step === "uploading" && (
           <motion.div key="uploading" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
             <GlassCard animate={false} accent>
