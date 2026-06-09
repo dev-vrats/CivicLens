@@ -13,7 +13,7 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfaceProps) {
-  const { messages, sendMessage, loading } = useChat();
+  const { messages, sendMessage, loading, error } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -133,6 +133,18 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
               <LoadingSpinner size="sm" />
               <span style={{ color: "var(--text-3)", fontSize: 13 }}>Analyzing…</span>
             </div>
+          </motion.div>
+        )}
+        {/* Error state */}
+        {error && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ margin: "4px 0", padding: "12px 14px", borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)" }}>
+            <p style={{ fontSize: 13, color: "var(--red)", fontWeight: 600, marginBottom: 4 }}>AI unavailable</p>
+            <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>
+              {error.includes("403") || error.includes("API") || error.includes("key")
+                ? "Gemini API key not set on server. Add GEMINI_API_KEY in Vercel environment variables."
+                : error}
+            </p>
           </motion.div>
         )}
         <div ref={messagesEndRef} />
