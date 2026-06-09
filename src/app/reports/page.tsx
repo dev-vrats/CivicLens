@@ -278,14 +278,24 @@ function ReportsContent() {
   }, [firestoreReports, mergeWithFirestore]);
 
   const handleDelete = useCallback(async (id: string) => {
+    // Immediately remove from UI for instant feedback
+    setReports((prev) => prev.filter((r) => r.id !== id));
+    setFirestoreReports((prev) => prev.filter((r) => r.id !== id));
+    deleteLocalReport(id);
+
+    // If it's a local-only report (no Firestore doc), we're done
+    if (id.startsWith("local-")) {
+      toast.success("Report deleted");
+      return;
+    }
+
+    // Try to delete from Firestore too
     try {
       await deleteDoc(doc(db, "reports", id));
-      deleteLocalReport(id);
       toast.success("Report deleted");
     } catch {
-      // If Firestore delete fails (rules), at least remove locally
-      deleteLocalReport(id);
-      toast.success("Removed from your local view");
+      // Firestore rules blocked delete — local removal already done
+      toast.success("Removed from your view");
     }
   }, [deleteLocalReport]);
 

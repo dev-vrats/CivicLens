@@ -1,9 +1,9 @@
 "use client";
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChat } from "@/hooks/useChat";
-import LoadingSpinner from "./LoadingSpinner";
-import { Send, Bot, MapPin } from "lucide-react";
+import { useChatHistory } from "@/hooks/useChatHistory";
+import { Send, Bot, MapPin, RotateCcw } from "lucide-react";
 
 interface ChatInterfaceProps {
   imageUrl: string;
@@ -12,8 +12,34 @@ interface ChatInterfaceProps {
   docId: string;
 }
 
+/* ── Animated typing dots ── */
+function TypingDots() {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 0" }}>
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          style={{
+            display: "inline-block",
+            width: 5, height: 5,
+            borderRadius: "50%",
+            background: "var(--accent)",
+          }}
+          animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
+          transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfaceProps) {
-  const { messages, sendMessage, loading, error } = useChat();
+  const { save, load } = useChatHistory(docId);
+
+  // Load saved history once on mount — stable reference
+  const initialMessages = useMemo(() => load(), []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { messages, sendMessage, loading, error } = useChat(initialMessages, save);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -21,18 +47,21 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
+  // Only send the initial AI greeting if there's no existing history
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-    sendMessage(
-      "Please analyze this civic issue I've just reported and ask me a helpful follow-up question.",
-      imageUrl,
-      lat,
-      lng
-    );
-  }, [sendMessage, imageUrl, lat, lng]);
+    if (initialMessages.length === 0) {
+      sendMessage(
+        "Please analyze this civic issue I've just reported and ask me a helpful follow-up question.",
+        imageUrl,
+        lat,
+        lng
+      );
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -55,6 +84,13 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
   };
 
+  const handleRetry = useCallback(() => {
+    sendMessage(
+      "Please analyze this civic issue I've just reported and ask me a helpful follow-up question.",
+      imageUrl, lat, lng
+    );
+  }, [sendMessage, imageUrl, lat, lng]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -76,12 +112,19 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
           <div className="flex items-center gap-2">
             <Bot size={14} color="var(--accent)" strokeWidth={2} />
             <span className="font-medium text-sm" style={{ color: "var(--text-1)" }}>CivicLens AI</span>
-            <span
+            <motion.span
               className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: "var(--green-dim)", color: "var(--green)", border: "1px solid rgba(34,197,94,0.15)", fontSize: 11 }}
+              animate={loading ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }}
+              transition={{ duration: 1.2, repeat: loading ? Infinity : 0 }}
+              style={{
+                background: loading ? "var(--accent-dim)" : "var(--green-dim)",
+                color: loading ? "var(--accent)" : "var(--green)",
+                border: `1px solid ${loading ? "rgba(0,194,255,0.2)" : "rgba(34,197,94,0.15)"}`,
+                fontSize: 11,
+              }}
             >
-              online
-            </span>
+              {loading ? "typing…" : "online"}
+            </motion.span>
           </div>
           <div className="flex items-center gap-1 mt-0.5">
             <MapPin size={10} color="var(--text-3)" />
@@ -90,6 +133,21 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
             </span>
           </div>
         </div>
+        {/* Clear chat */}
+        {messages.length > 0 && (
+          <button
+            className="btn btn-ghost"
+            style={{ padding: "5px 8px", borderRadius: 8, gap: 4, fontSize: 11.5 }}
+            onClick={() => {
+              if (confirm("Clear this chat history?")) {
+                window.location.reload();
+              }
+            }}
+            title="Clear chat"
+          >
+            <RotateCcw size={12} color="var(--text-3)" />
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -112,29 +170,35 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
                 </div>
               )}
               <div className={msg.role === "user" ? "bubble-user" : "bubble-ai"}>
-                <p
-                  style={{ color: "var(--text-1)", fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap" }}
-                  className={msg.streaming && msg.content.length > 0 ? "typing-cursor" : ""}
-                >
-                  {msg.content || (msg.streaming ? "\u00a0" : "…")}
-                </p>
+                {/* Show typing dots when streaming but no content yet */}
+                {msg.streaming && msg.content.length === 0 ? (
+                  <TypingDots />
+                ) : (
+                  <p
+                    style={{ color: "var(--text-1)", fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap" }}
+                    className={msg.streaming && msg.content.length > 0 ? "typing-cursor" : ""}
+                  >
+                    {msg.content}
+                  </p>
+                )}
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
 
+        {/* Loading dots when waiting for first chunk */}
         {loading && messages[messages.length - 1]?.role !== "ai" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
             <div className="flex-shrink-0 rounded-full flex items-center justify-center"
               style={{ width: 26, height: 26, background: "var(--accent-dim)", border: "1px solid rgba(0,194,255,0.15)" }}>
               <Bot size={13} color="var(--accent)" strokeWidth={2} />
             </div>
-            <div className="bubble-ai flex items-center gap-2">
-              <LoadingSpinner size="sm" />
-              <span style={{ color: "var(--text-3)", fontSize: 13 }}>Analyzing…</span>
+            <div className="bubble-ai">
+              <TypingDots />
             </div>
           </motion.div>
         )}
+
         {/* Error state */}
         {error && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -152,12 +216,13 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
             <button
               className="btn btn-outline"
               style={{ fontSize: 11.5, padding: "4px 12px", marginTop: 8, borderRadius: 6 }}
-              onClick={() => sendMessage("Please analyze this civic issue I've just reported and ask me a helpful follow-up question.", imageUrl, lat, lng)}
+              onClick={handleRetry}
             >
               Retry
             </button>
           </motion.div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 

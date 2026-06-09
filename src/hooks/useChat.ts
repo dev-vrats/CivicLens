@@ -15,26 +15,33 @@ export interface UseChatResult {
   error: string | null;
 }
 
-export function useChat(): UseChatResult {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function useChat(
+  initialMessages: ChatMessage[] = [],
+  onMessagesChange?: (msgs: ChatMessage[]) => void
+): UseChatResult {
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Keep a stable ref of messages for the closure inside sendMessage
-  const messagesRef = useRef<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>(initialMessages);
 
-  const updateMessages = (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
-    setMessages((prev) => {
-      const next = updater(prev);
-      messagesRef.current = next;
-      return next;
-    });
-  };
+  const updateMessages = useCallback(
+    (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+      setMessages((prev) => {
+        const next = updater(prev);
+        messagesRef.current = next;
+        // Persist to localStorage via callback (non-streaming messages only)
+        const stable = next.filter((m) => !m.streaming);
+        onMessagesChange?.(stable);
+        return next;
+      });
+    },
+    [onMessagesChange]
+  );
 
   const sendMessage = useCallback(
     async (text: string, imageUrl?: string, lat?: number, lng?: number) => {
       setError(null);
 
-      // Add user message
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
         role: "user",
@@ -43,13 +50,11 @@ export function useChat(): UseChatResult {
       updateMessages((prev) => [...prev, userMsg]);
       setLoading(true);
 
-      // Build history for context (exclude the message we just added)
       const history = messagesRef.current.slice(0, -1).map((m) => ({
         role: m.role,
         content: m.content,
       }));
 
-      // Create a placeholder AI message for streaming
       const aiMsgId = `ai-${Date.now()}`;
       const aiPlaceholder: ChatMessage = {
         id: aiMsgId,
@@ -80,33 +85,25 @@ export function useChat(): UseChatResult {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          accumulated += chunk;
-
-          // Update the streaming AI message in place
+          accumulated += decoder.decode(value, { stream: true });
           updateMessages((prev) =>
-            prev.map((m) =>
-              m.id === aiMsgId ? { ...m, content: accumulated } : m
-            )
+            prev.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m))
           );
         }
 
-        // Mark streaming as done
+        // Mark streaming done
         updateMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId ? { ...m, streaming: false } : m
-          )
+          prev.map((m) => (m.id === aiMsgId ? { ...m, streaming: false } : m))
         );
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Failed to get AI response";
         setError(msg);
-        // Remove the empty placeholder on error
         updateMessages((prev) => prev.filter((m) => m.id !== aiMsgId));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [updateMessages]
   );
 
   return { messages, sendMessage, loading, error };
