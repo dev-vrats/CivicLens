@@ -5,13 +5,174 @@ import Link from "next/link";
 import ReportForm from "@/components/ReportForm";
 import ChatInterface from "@/components/ChatInterface";
 import { useUserId } from "@/hooks/useUserId";
-import { Map, ArrowRight, CheckCircle, Copy, Check, User } from "lucide-react";
+import { Map, ArrowRight, CheckCircle, Copy, Check, User, Info, X, MapPin, MessageSquare, Send, Camera, ChevronRight } from "lucide-react";
 
 interface ReportData { imageUrl: string; lat: number; lng: number; docId: string; }
+
+/* ── About Modal ── */
+function AboutModal({ onClose }: { onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "20px",
+        overflowY: "auto",
+      }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.93, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: "spring", stiffness: 280, damping: 24 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-2)",
+          border: "1px solid var(--border)",
+          borderRadius: 20,
+          width: "100%",
+          maxWidth: 480,
+          overflow: "hidden",
+          maxHeight: "90dvh",
+          overflowY: "auto",
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: "20px 24px 16px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+          position: "sticky", top: 0,
+          background: "var(--bg-2)",
+          backdropFilter: "blur(12px)",
+          zIndex: 1,
+        }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%", background: "var(--accent)",
+                boxShadow: "0 0 8px var(--accent)",
+              }} />
+              <span className="font-display" style={{ fontSize: 16, fontWeight: 700, color: "var(--text-1)", letterSpacing: "-0.02em" }}>
+                CivicLens
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--accent)", fontStyle: "italic", fontWeight: 500 }}>
+              Your City. Your Voice. Instant Impact.
+            </p>
+          </div>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: 8, borderRadius: 10, flexShrink: 0 }}
+            onClick={onClose}
+          >
+            <X size={16} color="var(--text-2)" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "20px 24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* Intro */}
+          <p style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.75 }}>
+            We believe that reporting civic issues shouldn&apos;t feel like a chore. CivicLens is built to bridge the gap between citizens and local authorities, making it incredibly simple to report potholes, broken streetlights, and road hazards in just a few taps.
+          </p>
+          <p style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.75 }}>
+            No long forms, no complicated portals — just a seamless experience designed to keep our streets safe and beautiful.
+          </p>
+
+          {/* How it works */}
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-1)", marginBottom: 14, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              How It Works
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {[
+                {
+                  icon: <Camera size={16} color="var(--accent)" />,
+                  bg: "var(--accent-dim)",
+                  border: "rgba(0,194,255,0.15)",
+                  title: "Snap a Photo",
+                  desc: "See an issue? Just click a picture or upload one from your gallery.",
+                },
+                {
+                  icon: <MapPin size={16} color="var(--green)" />,
+                  bg: "var(--green-dim)",
+                  border: "rgba(34,197,94,0.15)",
+                  title: "Pinpoint Accuracy",
+                  desc: "You don't need to type out long addresses. The app automatically detects the exact location of the problem the moment you upload the photo.",
+                },
+                {
+                  icon: <MessageSquare size={16} color="#a78bfa" />,
+                  bg: "rgba(139,92,246,0.1)",
+                  border: "rgba(139,92,246,0.18)",
+                  title: "Smart Chat Assistant",
+                  desc: "Instead of filling out boring details, our friendly smart assistant will briefly chat with you to understand the situation better and gather any helpful landmarks.",
+                },
+                {
+                  icon: <Send size={16} color="#f59e0b" />,
+                  bg: "rgba(245,158,11,0.1)",
+                  border: "rgba(245,158,11,0.18)",
+                  title: "Direct Action",
+                  desc: "Once your report is ready, forward it directly to the local authorities via WhatsApp, complete with the image, exact map location, and a clear summary.",
+                },
+              ].map(({ icon, bg, border, title, desc }) => (
+                <div key={title} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                    background: bg, border: `1px solid ${border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    marginTop: 1,
+                  }}>
+                    {icon}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-1)", marginBottom: 3 }}>{title}</p>
+                    <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.65 }}>{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Why */}
+          <div style={{
+            borderRadius: 14,
+            border: "1px solid rgba(0,194,255,0.12)",
+            background: "var(--accent-dim)",
+            padding: "16px 18px",
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", marginBottom: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              Why Use CivicLens?
+            </p>
+            <p style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.75 }}>
+              Our goal is to empower you to drive real change in your neighborhood. By turning a complicated reporting process into a quick, conversational chat, we ensure your voice reaches the right people, at the right time, with exactly the right information.
+            </p>
+          </div>
+
+          <button
+            className="btn btn-accent"
+            style={{ width: "100%", marginTop: 4 }}
+            onClick={onClose}
+          >
+            Start Reporting
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 export default function HomePage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const userId = useUserId();
 
   const copyId = () => {
@@ -25,6 +186,11 @@ export default function HomePage() {
     <main style={{ minHeight: "100dvh" }}>
       <div className="bg-grid" aria-hidden="true" />
       <div className="bg-glow" aria-hidden="true" />
+
+      {/* About Modal */}
+      <AnimatePresence>
+        {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      </AnimatePresence>
 
       {/* ── Nav ── */}
       <nav style={{
@@ -62,6 +228,16 @@ export default function HomePage() {
                 : <Copy size={11} color="var(--text-3)" />}
             </button>
           )}
+          {/* About button */}
+          <button
+            className="btn btn-ghost"
+            style={{ gap: 5, padding: "5px 10px", fontSize: 13 }}
+            onClick={() => setShowAbout(true)}
+            title="About CivicLens"
+          >
+            <Info size={14} strokeWidth={1.5} />
+            About
+          </button>
           <Link href="/reports" className="btn btn-outline" style={{ fontSize: 13, gap: 6 }}>
             <Map size={13} strokeWidth={1.5} />
             Live map
@@ -142,11 +318,6 @@ export default function HomePage() {
                     <span style={{ fontFamily: "monospace", color: "var(--accent)", fontSize: 12 }}>
                       {userId}
                     </span>
-                    . Visit{" "}
-                    <Link href={`/reports?mine=true`} style={{ color: "var(--accent)", textDecoration: "underline" }}>
-                      My Reports
-                    </Link>{" "}
-                    anytime to track status.
                   </p>
                 </div>
                 <button
@@ -158,7 +329,34 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* User ID save reminder */}
+              {/* ── My Reports CTA — prominent ── */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+              >
+                <Link
+                  href="/reports?mine=true"
+                  className="btn btn-accent"
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    fontSize: 14,
+                    padding: "13px 20px",
+                    textDecoration: "none",
+                    borderRadius: 12,
+                  }}
+                >
+                  <Map size={16} strokeWidth={1.5} />
+                  View My Reports on Map
+                  <ArrowRight size={14} />
+                </Link>
+              </motion.div>
+
+              {/* User ID reminder */}
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}

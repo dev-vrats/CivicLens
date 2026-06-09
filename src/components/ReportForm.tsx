@@ -14,7 +14,7 @@ import GlassCard from "./GlassCard";
 import toast from "react-hot-toast";
 import {
   MapPin, Camera, AlertTriangle, ArrowLeft,
-  Upload, CheckCircle, ChevronRight, X
+  Upload, CheckCircle, ChevronRight, X, ImageIcon
 } from "lucide-react";
 
 interface ReportFormProps {
@@ -29,7 +29,10 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [description, setDescription] = useState("");
   const [uploadDone, setUploadDone] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Two separate refs: one for camera, one for gallery
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const { location, loading: geoLoading, error: geoError, fetch: fetchLocation } = useGeolocation();
   const { upload, progress, uploading, error: uploadError } = useImgBBUpload();
@@ -57,6 +60,8 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -64,7 +69,6 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     setStep("uploading");
     setUploadDone(false);
 
-    // ── Image upload to ImgBB ──
     const downloadURL = await upload(selectedFile);
     if (!downloadURL) {
       toast.error(uploadError || "Upload failed. Try again.");
@@ -92,7 +96,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
       createdAt: now,
     });
 
-    // ── STEP 2: Try to sync to Firestore (requires: allow write: if true) ──
+    // ── STEP 2: Try to sync to Firestore ──
     try {
       const docRef = await addDoc(collection(db, "reports"), {
         imageUrl: downloadURL,
@@ -104,7 +108,6 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
         createdAt: serverTimestamp(),
       });
 
-      // Replace temp local entry with real Firestore document ID
       saveReport({
         id: docRef.id,
         imageUrl: downloadURL,
@@ -120,7 +123,6 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
       setStep("done");
       onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId: docRef.id });
     } catch {
-      // Firestore blocked by rules — local save already happened so report won't disappear
       toast("Saved locally. Update Firestore rules to sync.", { icon: "⚠️" });
       setStep("done");
       onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId: tempId });
@@ -129,6 +131,23 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
 
   return (
     <div className="w-full max-w-md mx-auto">
+      {/* Hidden file inputs */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
       <AnimatePresence mode="wait">
 
         {/* ── IDLE ── */}
@@ -214,16 +233,6 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
             <GlassCard className="p-5 flex flex-col gap-4" animate={false}>
               <p style={{ fontWeight: 600, fontSize: 14, color: "var(--text-1)" }}>Add a photo</p>
 
-              <input
-                ref={fileInputRef}
-                id="file-upload"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
               {preview ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.97 }}
@@ -235,7 +244,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
                     <button
                       className="btn btn-ghost"
                       style={{ padding: "5px 10px", fontSize: 11.5, background: "rgba(0,0,0,0.65)", color: "white", borderRadius: 6 }}
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => galleryInputRef.current?.click()}
                     >
                       Change
                     </button>
@@ -249,31 +258,74 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
                   </div>
                 </motion.div>
               ) : (
-                <button
-                  id="btn-choose-photo"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    width: "100%", aspectRatio: "16/9", borderRadius: 10,
-                    border: "1.5px dashed var(--border)", background: "var(--bg-3)",
-                    cursor: "pointer", display: "flex", flexDirection: "column",
-                    alignItems: "center", justifyContent: "center", gap: 10,
-                    transition: "border-color 0.15s ease, background 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.borderColor = "var(--border-focus)";
-                    (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-                    (e.currentTarget as HTMLElement).style.background = "var(--bg-3)";
-                  }}
-                >
-                  <Camera size={24} color="var(--text-3)" strokeWidth={1.5} />
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ fontSize: 13.5, fontWeight: 500, color: "var(--text-2)" }}>Take a photo or upload from gallery</p>
-                    <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 3 }}>PNG, JPG, HEIC — up to 20 MB</p>
-                  </div>
-                </button>
+                /* Two upload options: Camera + Gallery */
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {/* Take photo with camera */}
+                  <button
+                    id="btn-camera"
+                    onClick={() => cameraInputRef.current?.click()}
+                    style={{
+                      aspectRatio: "1/1", borderRadius: 12,
+                      border: "1.5px dashed var(--border)", background: "var(--bg-3)",
+                      cursor: "pointer", display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: 10,
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--border-focus)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--bg-3)";
+                    }}
+                  >
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 10,
+                      background: "var(--accent-dim)", border: "1px solid rgba(0,194,255,0.15)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Camera size={20} color="var(--accent)" strokeWidth={1.5} />
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)" }}>Take photo</p>
+                      <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>Open camera</p>
+                    </div>
+                  </button>
+
+                  {/* Upload from gallery */}
+                  <button
+                    id="btn-gallery"
+                    onClick={() => galleryInputRef.current?.click()}
+                    style={{
+                      aspectRatio: "1/1", borderRadius: 12,
+                      border: "1.5px dashed var(--border)", background: "var(--bg-3)",
+                      cursor: "pointer", display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: 10,
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--border-focus)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--accent-dim)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--bg-3)";
+                    }}
+                  >
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 10,
+                      background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.18)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <ImageIcon size={20} color="#a78bfa" strokeWidth={1.5} />
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)" }}>Gallery</p>
+                      <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>Pre-clicked photo</p>
+                    </div>
+                  </button>
+                </div>
               )}
 
               <textarea
