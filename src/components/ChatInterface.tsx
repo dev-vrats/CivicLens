@@ -139,12 +139,23 @@ export default function ChatInterface({ imageUrl, lat, lng, docId }: ChatInterfa
         {error && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{ margin: "4px 0", padding: "12px 14px", borderRadius: 12, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)" }}>
-            <p style={{ fontSize: 13, color: "var(--red)", fontWeight: 600, marginBottom: 4 }}>AI unavailable</p>
-            <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>
-              {error.includes("403") || error.includes("API") || error.includes("key")
-                ? "Gemini API key not set on server. Add GEMINI_API_KEY in Vercel environment variables."
-                : error}
+            <p style={{ fontSize: 13, color: "var(--red)", fontWeight: 600, marginBottom: 4 }}>
+              {error.includes("quota") || error.includes("429") ? "Rate limit hit" : "AI unavailable"}
             </p>
+            <p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.6 }}>
+              {error.includes("quota") || error.includes("429")
+                ? "Free Gemini API quota exceeded. Wait ~1 minute and try again."
+                : error.includes("503") || error.includes("not set")
+                ? "GEMINI_API_KEY not configured on server. Add it in Vercel → Environment Variables."
+                : "Could not reach AI. Check your connection and try again."}
+            </p>
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: 11.5, padding: "4px 12px", marginTop: 8, borderRadius: 6 }}
+              onClick={() => sendMessage("Please analyze this civic issue I've just reported and ask me a helpful follow-up question.", imageUrl, lat, lng)}
+            >
+              Retry
+            </button>
           </motion.div>
         )}
         <div ref={messagesEndRef} />

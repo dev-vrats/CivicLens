@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -108,6 +108,15 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error("[/api/chat] Error:", err);
     const message = err instanceof Error ? err.message : "Internal server error";
+
+    // Return quota/rate-limit as a readable 429
+    if (message.includes("429") || message.includes("quota") || message.includes("Too Many Requests")) {
+      return NextResponse.json(
+        { error: "API quota exceeded. The free Gemini tier has a limited request quota. Wait a minute and try again, or upgrade your Gemini API plan at aistudio.google.com." },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
