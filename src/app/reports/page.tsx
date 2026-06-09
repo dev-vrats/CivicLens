@@ -221,9 +221,10 @@ function ReportsContent() {
   const searchParams = useSearchParams();
   const userId = useUserId();
   const router = useRouter();
-  const { mergeWithFirestore, deleteReport: deleteLocalReport } = useLocalReports();
+  const { mergeWithFirestore, deleteReport: deleteLocalReport, localReports, isLoaded } = useLocalReports();
   const [firestoreReports, setFirestoreReports] = useState<ExtendedPin[]>([]);
   const [reports, setReports] = useState<ExtendedPin[]>([]);
+  // loading = true only until localStorage is read (instant) OR Firestore responds
   const [loading, setLoading] = useState(true);
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>(searchParams.get("mine") === "true" ? "mine" : "all");
@@ -271,6 +272,11 @@ function ReportsContent() {
     );
     return () => unsub();
   }, []);
+
+  // As soon as localStorage is read, stop showing spinner
+  useEffect(() => {
+    if (isLoaded) setLoading(false);
+  }, [isLoaded]);
 
   // Merge Firestore + local reports whenever either changes
   useEffect(() => {

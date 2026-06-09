@@ -52,9 +52,11 @@ function saveAll(reports: LocalReport[]): void {
 
 export function useLocalReports() {
   const [localReports, setLocalReports] = useState<LocalReport[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     setLocalReports(loadAll());
+    setIsLoaded(true);
   }, []);
 
   const saveReport = useCallback((report: Omit<LocalReport, "savedAt">) => {
@@ -100,5 +102,5 @@ export function useLocalReports() {
     [localReports]
   );
 
-  return { localReports, saveReport, deleteReport, mergeWithFirestore };
+  return { localReports, isLoaded, saveReport, deleteReport, mergeWithFirestore };
 }

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ReportForm from "@/components/ReportForm";
 import ChatInterface from "@/components/ChatInterface";
 import { useUserId } from "@/hooks/useUserId";
@@ -110,6 +111,7 @@ export default function HomePage() {
   const [copied, setCopied] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const userId = useUserId();
+  const router = useRouter();
 
   // Restore active report from sessionStorage on page revisit
   useEffect(() => {
@@ -125,7 +127,8 @@ export default function HomePage() {
   const handleReportReady = (data: ReportData) => {
     try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* ignore */ }
     setReportData(data);
-    setShowChat(true);
+    // Take user directly to their reports — they can chat from the card
+    router.push("/reports?mine=true");
   };
 
   const handleNewReport = () => {
