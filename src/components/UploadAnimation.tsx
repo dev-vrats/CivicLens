@@ -187,7 +187,7 @@ export default function UploadAnimation({ progress, done = false }: UploadAnimat
         {step === "done" && (
           <motion.div key="lbl-done" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center">
             <p style={{ color: "var(--green)", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Upload complete</p>
-            <p style={{ color: "var(--text-3)", fontSize: 12 }}>Saving to database…</p>
+            <p style={{ color: "var(--text-3)", fontSize: 12 }}>Finalising your report…</p>
           </motion.div>
         )}
       </AnimatePresence>

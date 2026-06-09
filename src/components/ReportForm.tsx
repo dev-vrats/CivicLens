@@ -23,6 +23,12 @@ interface ReportFormProps {
 
 type Step = "idle" | "locating" | "located" | "uploading" | "done";
 
+/** Race a promise against a timeout — resolves with null on timeout */
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), ms));
+  return Promise.race([promise, timeout]);
+}
+
 export default function ReportForm({ onReportReady }: ReportFormProps) {
   const [step, setStep] = useState<Step>("idle");
   const [preview, setPreview] = useState<string | null>(null);
@@ -30,7 +36,6 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
   const [description, setDescription] = useState("");
   const [uploadDone, setUploadDone] = useState(false);
 
-  // Two separate refs: one for camera, one for gallery
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +65,6 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
-    // Reset input so same file can be re-selected
     e.target.value = "";
   }, []);
 
@@ -69,6 +73,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     setStep("uploading");
     setUploadDone(false);
 
+    // ── 1. Upload image to ImgBB ──
     const downloadURL = await upload(selectedFile);
     if (!downloadURL) {
       toast.error(uploadError || "Upload failed. Try again.");
@@ -77,14 +82,15 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     }
 
     setUploadDone(true);
-    await new Promise((r) => setTimeout(r, 700));
+    // Brief pause so user sees the "Upload complete" ring
+    await new Promise((r) => setTimeout(r, 600));
 
     const uid = getUserId();
     const now = new Date();
     const desc = description.trim() || "No description provided";
-
-    // ── STEP 1: Save to localStorage FIRST (always works, no rules needed) ──
     const tempId = "local-" + Date.now();
+
+    // ── 2. Save to localStorage FIRST — always works, no rules needed ──
     saveReport({
       id: tempId,
       imageUrl: downloadURL,
@@ -96,37 +102,44 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
       createdAt: now,
     });
 
-    // ── STEP 2: Try to sync to Firestore ──
+    // ── 3. Try Firestore with an 8-second timeout so we never hang ──
+    let docId = tempId;
     try {
-      const docRef = await addDoc(collection(db, "reports"), {
-        imageUrl: downloadURL,
-        lat: location.lat,
-        lng: location.lng,
-        description: desc,
-        status: "pending",
-        userId: uid,
-        createdAt: serverTimestamp(),
-      });
+      const result = await withTimeout(
+        addDoc(collection(db, "reports"), {
+          imageUrl: downloadURL,
+          lat: location.lat,
+          lng: location.lng,
+          description: desc,
+          status: "pending",
+          userId: uid,
+          createdAt: serverTimestamp(),
+        }),
+        8000
+      );
 
-      saveReport({
-        id: docRef.id,
-        imageUrl: downloadURL,
-        lat: location.lat,
-        lng: location.lng,
-        description: desc,
-        status: "pending",
-        userId: uid,
-        createdAt: now,
-      });
-
-      toast.success("Report saved to database");
-      setStep("done");
-      onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId: docRef.id });
+      if (result) {
+        // Upgrade local entry to real Firestore ID
+        docId = result.id;
+        saveReport({
+          id: docId,
+          imageUrl: downloadURL,
+          lat: location.lat,
+          lng: location.lng,
+          description: desc,
+          status: "pending",
+          userId: uid,
+          createdAt: now,
+        });
+      }
+      // If result is null, Firestore timed out — local save already done, continue
     } catch {
-      toast("Saved locally. Update Firestore rules to sync.", { icon: "⚠️" });
-      setStep("done");
-      onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId: tempId });
+      // Firestore rules blocked write — local save is enough
     }
+
+    // ── 4. Always proceed to done ──
+    setStep("done");
+    onReportReady({ imageUrl: downloadURL, lat: location.lat, lng: location.lng, docId });
   }, [selectedFile, location, upload, description, uploadError, onReportReady, saveReport]);
 
   return (
@@ -212,7 +225,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
         {step === "located" && location && (
           <motion.div key="located" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="flex flex-col gap-3">
 
-            {/* Location row */}
+            {/* Location pill */}
             <GlassCard className="px-4 py-3 flex items-center gap-3" animate={false}>
               <div style={{
                 width: 30, height: 30, borderRadius: 8, flexShrink: 0,
@@ -229,7 +242,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
               </div>
             </GlassCard>
 
-            {/* Photo upload card */}
+            {/* Photo card */}
             <GlassCard className="p-5 flex flex-col gap-4" animate={false}>
               <p style={{ fontWeight: 600, fontSize: 14, color: "var(--text-1)" }}>Add a photo</p>
 
@@ -258,9 +271,8 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
                   </div>
                 </motion.div>
               ) : (
-                /* Two upload options: Camera + Gallery */
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  {/* Take photo with camera */}
+                  {/* Camera */}
                   <button
                     id="btn-camera"
                     onClick={() => cameraInputRef.current?.click()}
@@ -293,7 +305,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
                     </div>
                   </button>
 
-                  {/* Upload from gallery */}
+                  {/* Gallery */}
                   <button
                     id="btn-gallery"
                     onClick={() => galleryInputRef.current?.click()}
