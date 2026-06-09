@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useImgBBUpload } from "@/hooks/useImgBBUpload";
 import { getUserId } from "@/hooks/useUserId";
+import { useLocalReports } from "@/hooks/useLocalReports";
 import LoadingSpinner from "./LoadingSpinner";
 import UploadAnimation from "./UploadAnimation";
 import GlassCard from "./GlassCard";
@@ -32,6 +33,7 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
 
   const { location, loading: geoLoading, error: geoError, fetch: fetchLocation } = useGeolocation();
   const { upload, progress, uploading, error: uploadError } = useImgBBUpload();
+  const { saveReport } = useLocalReports();
 
   const handleStartReport = useCallback(() => {
     setStep("locating");
@@ -74,14 +76,28 @@ export default function ReportForm({ onReportReady }: ReportFormProps) {
     await new Promise((r) => setTimeout(r, 700));
 
     try {
+      const uid = getUserId();
+      const now = new Date();
       const docRef = await addDoc(collection(db, "reports"), {
         imageUrl: downloadURL,
         lat: location.lat,
         lng: location.lng,
         description: description.trim() || "No description provided",
         status: "pending",
-        userId: getUserId(),
+        userId: uid,
         createdAt: serverTimestamp(),
+      });
+
+      // Always save to localStorage — survives Firestore rule changes & page refreshes
+      saveReport({
+        id: docRef.id,
+        imageUrl: downloadURL,
+        lat: location.lat,
+        lng: location.lng,
+        description: description.trim() || "No description provided",
+        status: "pending",
+        userId: uid,
+        createdAt: now,
       });
       toast.success("Report submitted successfully");
       setStep("done");

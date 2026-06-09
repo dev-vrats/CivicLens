@@ -7,7 +7,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { useUserId } from "@/hooks/useUserId";
-import { getRegionalPWDNumber, buildPWDWhatsAppUrl } from "@/lib/pwdRouter";
+import { useLocalReports } from "@/hooks/useLocalReports";
+import { getRegionalPWD, getRegionalPWDNumber, buildPWDWhatsAppUrl } from "@/lib/pwdRouter";
 import GlassCard from "@/components/GlassCard";
 import StatusBadge from "@/components/StatusBadge";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -47,6 +48,7 @@ function openPWDWhatsApp(r: ExtendedPin): void {
 /* ── Forward Modal ── */
 function ForwardModal({ report, onClose }: { report: ExtendedPin; onClose: () => void }) {
   const mapsUrl = `https://maps.google.com/?q=${report.lat},${report.lng}`;
+  const region = getRegionalPWD(report.lat, report.lng);
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -78,8 +80,8 @@ function ForwardModal({ report, onClose }: { report: ExtendedPin; onClose: () =>
         }}>
           <div>
             <p style={{ fontWeight: 700, fontSize: 15, color: "var(--text-1)" }}>Forward to PWD</p>
-            <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 2 }}>
-              Public Works Department
+            <p style={{ fontSize: 12, color: "var(--accent)", marginTop: 2, fontWeight: 500 }}>
+              {region.label}
             </p>
           </div>
           <button className="btn btn-ghost" style={{ padding: 7, borderRadius: 8 }} onClick={onClose}>
@@ -123,14 +125,14 @@ function ForwardModal({ report, onClose }: { report: ExtendedPin; onClose: () =>
 
         {/* Message preview */}
         <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <p style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 500 }}>Message preview</p>
             <span style={{
               fontSize: 10, color: "var(--accent)", fontFamily: "monospace",
               background: "var(--accent-dim)", padding: "2px 7px", borderRadius: 4,
               border: "1px solid rgba(0,194,255,0.15)",
             }}>
-              → {getRegionalPWDNumber(report.lat, report.lng)}
+              → +{region.number}
             </span>
           </div>
           <div style={{
@@ -168,7 +170,7 @@ function ForwardModal({ report, onClose }: { report: ExtendedPin; onClose: () =>
             Send to PWD via WhatsApp
           </button>
           <p style={{ fontSize: 11, color: "var(--text-3)", textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
-            Opens a direct WhatsApp chat pre-loaded with the full report. Just hit send.
+            Opens a direct WhatsApp chat with <strong style={{ color: "var(--text-2)" }}>{region.label}</strong> pre-loaded with the full report. Just hit send.
           </p>
         </div>
       </motion.div>
@@ -217,6 +219,8 @@ function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
 function ReportsContent() {
   const searchParams = useSearchParams();
   const userId = useUserId();
+  const { mergeWithFirestore, deleteReport: deleteLocalReport } = useLocalReports();
+  const [firestoreReports, setFirestoreReports] = useState<ExtendedPin[]>([]);
   const [reports, setReports] = useState<ExtendedPin[]>([]);
   const [loading, setLoading] = useState(true);
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
@@ -250,14 +254,14 @@ function ReportsContent() {
             userId: r.userId || null,
           };
         });
-        setReports(data);
+        setFirestoreReports(data);
         setLoading(false);
         setFirestoreError(null);
       },
       (err) => {
         setFirestoreError(
           err.code === "permission-denied"
-            ? "Access denied. Set Firestore rules: allow read: if true;"
+            ? "Firestore rules block reads. Your local reports are shown below."
             : err.message
         );
         setLoading(false);
@@ -266,14 +270,22 @@ function ReportsContent() {
     return () => unsub();
   }, []);
 
+  // Merge Firestore + local reports whenever either changes
+  useEffect(() => {
+    setReports(mergeWithFirestore(firestoreReports as unknown as import("@/hooks/useLocalReports").LocalReport[]) as ExtendedPin[]);
+  }, [firestoreReports, mergeWithFirestore]);
+
   const handleDelete = useCallback(async (id: string) => {
     try {
       await deleteDoc(doc(db, "reports", id));
+      deleteLocalReport(id);
       toast.success("Report deleted");
     } catch {
-      toast.error("Delete failed. Check Firestore rules.");
+      // If Firestore delete fails (rules), at least remove locally
+      deleteLocalReport(id);
+      toast.success("Removed from your local view");
     }
-  }, []);
+  }, [deleteLocalReport]);
 
   const getFiltered = () => {
     if (filter === "mine") return reports.filter((r) => r.userId === userId);
