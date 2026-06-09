@@ -15,8 +15,9 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import type { ReportPin } from "@/components/ReportsMap";
 import {
   ArrowLeft, AlertCircle, Copy, Check, User,
-  Trash2, Send, MapPin, X
+  Trash2, Send, MapPin, X, MessageCircle
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 const ReportsMap = dynamic(() => import("@/components/ReportsMap"), {
@@ -219,6 +220,7 @@ function DeleteButton({ onConfirm }: { onConfirm: () => void }) {
 function ReportsContent() {
   const searchParams = useSearchParams();
   const userId = useUserId();
+  const router = useRouter();
   const { mergeWithFirestore, deleteReport: deleteLocalReport } = useLocalReports();
   const [firestoreReports, setFirestoreReports] = useState<ExtendedPin[]>([]);
   const [reports, setReports] = useState<ExtendedPin[]>([]);
@@ -529,7 +531,29 @@ function ReportsContent() {
                         <div style={{
                           display: "flex", alignItems: "center", justifyContent: "space-between",
                           paddingTop: 8, borderTop: "1px solid var(--border)", marginTop: 2,
+                          gap: 6,
                         }}>
+                          {/* Chat with AI */}
+                          <button
+                            className="btn btn-ghost"
+                            style={{ padding: "4px 10px", fontSize: 12, gap: 5, borderRadius: 7 }}
+                            onClick={() => {
+                              try {
+                                sessionStorage.setItem("civiclens_active_report", JSON.stringify({
+                                  imageUrl: report.imageUrl,
+                                  lat: report.lat,
+                                  lng: report.lng,
+                                  docId: report.id,
+                                }));
+                              } catch { /* ignore */ }
+                              router.push("/");
+                            }}
+                            title="Chat with AI about this report"
+                          >
+                            <MessageCircle size={12} color="#a78bfa" />
+                            <span style={{ color: "#a78bfa" }}>Chat with AI</span>
+                          </button>
+
                           {/* Forward to PWD */}
                           <button
                             className="btn btn-ghost"
@@ -538,7 +562,7 @@ function ReportsContent() {
                             title="Forward to PWD via WhatsApp"
                           >
                             <Send size={12} color="var(--accent)" />
-                            <span style={{ color: "var(--accent)" }}>Forward to PWD</span>
+                            <span style={{ color: "var(--accent)" }}>Forward</span>
                           </button>
 
                           {/* Delete (own reports only) */}

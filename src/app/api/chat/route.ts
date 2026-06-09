@@ -16,6 +16,14 @@ Format: Use short paragraphs and occasional emojis (🚧🗺️📋✅) for read
 Important: Always end your first response with exactly one follow-up question.`;
 
 export async function POST(req: NextRequest) {
+  // Guard: check API key is configured
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json(
+      { error: "GEMINI_API_KEY is not set. Add it in Vercel → Settings → Environment Variables, then redeploy." },
+      { status: 503 }
+    );
+  }
+
   try {
     const { text, imageUrl, lat, lng, history } = await req.json();
 
