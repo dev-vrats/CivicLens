@@ -562,7 +562,7 @@ function ReportsContent() {
                                   docId: report.id,
                                 }));
                               } catch { /* ignore */ }
-                              router.push("/");
+                              router.push("/?chat=1");
                             }}
                             title="Chat with AI about this report"
                           >
@@ -572,13 +572,13 @@ function ReportsContent() {
 
                           {/* Forward to PWD */}
                           <button
-                            className="btn btn-ghost"
-                            style={{ padding: "4px 10px", fontSize: 12, gap: 5, borderRadius: 7 }}
+                            className="btn btn-accent"
+                            style={{ padding: "4px 10px", fontSize: 12, gap: 5, borderRadius: 7, fontWeight: 600 }}
                             onClick={() => setForwardReport(report)}
                             title="Forward to PWD via WhatsApp"
                           >
-                            <Send size={12} color="var(--accent)" />
-                            <span style={{ color: "var(--accent)" }}>Forward</span>
+                            <Send size={12} color="#fff" />
+                            <span style={{ color: "#fff" }}>Forward to PWD</span>
                           </button>
 
                           {/* Delete (own reports only) */}

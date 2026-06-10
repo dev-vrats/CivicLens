@@ -107,19 +107,22 @@ function AboutModal({ onClose }: { onClose: () => void }) {
 /* ─── Main Page ─── */
 export default function HomePage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [showChat, setShowChat] = useState(false);   // controls chat vs reports-link view
+  const [showChat, setShowChat] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const userId = useUserId();
   const router = useRouter();
-
-  // Restore active report from sessionStorage on page revisit
+  // Only open chat if explicitly requested via ?chat=1 (from report card)
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("chat") !== "1") return;
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
         setReportData(JSON.parse(saved));
         setShowChat(true);
+        // Clean URL without reload
+        window.history.replaceState({}, "", "/");
       }
     } catch { /* ignore */ }
   }, []);
@@ -226,73 +229,27 @@ export default function HomePage() {
             </motion.div>
           )}
 
-          {/* ── POST-SUBMIT: Choice view ── */}
+          {/* ── POST-SUBMIT: Redirecting view ── */}
           {reportData && !showChat && (
-            <motion.div key="choice" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full max-w-md flex flex-col gap-3">
-              {/* Success */}
-              <div className="card flex items-start gap-3 p-4" style={{ borderColor: "rgba(34,197,94,0.2)" }}>
-                <CheckCircle size={17} color="var(--green)" strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 600, fontSize: 13.5, color: "var(--text-1)", marginBottom: 3 }}>Report submitted</p>
-                  <p style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
-                    Saved under <span style={{ fontFamily: "monospace", color: "var(--accent)", fontSize: 12 }}>{userId}</span>
-                  </p>
-                </div>
-                <button className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px", flexShrink: 0 }} onClick={handleNewReport}>
-                  New <ArrowRight size={11} />
-                </button>
-              </div>
-
-              {/* AI Chat CTA */}
-              <motion.button
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                className="btn btn-accent"
-                style={{ width: "100%", gap: 8, fontSize: 14, padding: "14px 20px", borderRadius: 12 }}
-                onClick={() => setShowChat(true)}
-              >
-                <MessageCircle size={16} strokeWidth={1.5} />
-                Chat with AI about this issue
-                <ChevronRight size={14} />
-              </motion.button>
-
-              {/* My Reports CTA */}
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-                <Link
-                  href="/reports?mine=true"
-                  className="btn btn-outline"
-                  style={{ width: "100%", gap: 8, fontSize: 14, padding: "13px 20px", borderRadius: 12, textDecoration: "none", justifyContent: "center" }}
-                >
-                  <Map size={16} strokeWidth={1.5} />
-                  View My Reports on Map
-                  <ArrowRight size={14} />
-                </Link>
-              </motion.div>
-
-              {/* ID reminder */}
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.28 }}
-                className="card flex items-center gap-3 px-4 py-3" style={{ borderColor: "rgba(0,194,255,0.15)", background: "var(--accent-dim)" }}>
-                <User size={14} color="var(--accent)" style={{ flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 11.5, color: "var(--text-2)" }}>Your anonymous tracking ID</p>
-                  <p style={{ fontFamily: "monospace", fontSize: 13, color: "var(--text-1)", fontWeight: 600 }}>{userId}</p>
-                </div>
-                <button className="btn btn-outline" style={{ fontSize: 12, padding: "5px 11px", gap: 5 }} onClick={copyId}>
-                  {copied ? <Check size={12} color="var(--green)" /> : <Copy size={12} />}
-                  {copied ? "Copied" : "Copy"}
-                </button>
-              </motion.div>
+            <motion.div key="redirecting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center gap-4 py-10">
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%",
+                border: "2px solid var(--border)", borderTopColor: "var(--accent)",
+                animation: "spin 1s linear infinite"
+              }} />
+              <p style={{ color: "var(--text-2)", fontSize: 14 }}>Redirecting to your reports...</p>
             </motion.div>
           )}
 
           {/* ── CHAT VIEW ── */}
           {reportData && showChat && (
             <motion.div key="chat" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full max-w-md flex flex-col gap-3">
-              {/* Back to report options */}
+              {/* Back to reports list */}
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
                   className="btn btn-ghost"
                   style={{ gap: 6, fontSize: 13, padding: "6px 12px" }}
-                  onClick={() => setShowChat(false)}
+                  onClick={() => router.push("/reports?mine=true")}
                 >
                   ← Back
                 </button>
